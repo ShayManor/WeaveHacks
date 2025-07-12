@@ -180,7 +180,7 @@ spec:
             finetune.py \
             --run-name={{workflow.parameters.run_name}} \
             --model={{workflow.parameters.model}} \
-            --trust-remote-code={{workflow.parameters.trust_remote_code}} \
+            --trust-remote-code \
             --dataset=/{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}} \
             --lr={{workflow.parameters.learn_rate}} \
             --epochs={{workflow.parameters.epochs}} \
@@ -195,10 +195,10 @@ spec:
             --context-size={{workflow.parameters.context}} \
             --project-id={{workflow.parameters.project_id}} \
             --logs=/{{workflow.parameters.pvc}}/{{workflow.parameters.logs}} \
+            --no-resume \
             --fp16 \
             --prompt-every={{workflow.parameters.prompt_every}} \
             --prompt-tokens={{workflow.parameters.prompt_tokens}} \
-            --prompt-samples={{workflow.parameters.prompt_samples}} \
             --warmup-ratio={{workflow.parameters.warmup_ratio}}
         tty: true
         env:
