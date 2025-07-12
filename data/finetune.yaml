@@ -81,7 +81,7 @@ spec:
       - name: trainer_ram
         value: 512
       - name: finetuner_image
-        value: 'ghcr.io/yourusername/mistral-finetuner'
+        value: 'ghcr.io/shaymanor/mistral-finetuner'
       - name: finetuner_tag
         value: 'latest'
   templates:
@@ -102,6 +102,7 @@ spec:
     - name: dataset-sync
       container:
         image: amazon/aws-cli:latest
+        imagePullPolicy: Always # Good practice for 'latest' tags
         env:
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
@@ -116,11 +117,14 @@ spec:
         command: [ "/bin/sh","-c" ]
         args:
           - >
-            mkdir -p /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}} &&
-            aws configure set default.s3.addressing_style virtual &&
-            aws s3 sync s3://ml-dev/documents \
-                        /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}/ \
-                        --endpoint-url https://cwobject.com
+            rm -rf /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}/* # clean
+            mkdir -p /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}       # recreate
+
+            aws configure set default.s3.addressing_style virtual                       # S3 setting
+
+            aws s3 cp s3://ml-dev/documents/good_traces.txt \
+              /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}/good_traces.txt \
+              --endpoint-url https://cwobject.com
         volumeMounts:
           - name: "{{workflow.parameters.pvc}}"
             mountPath: "/{{workflow.parameters.pvc}}"
@@ -149,9 +153,11 @@ spec:
       inputs:
         parameters:
           - name: wandb_key
+      # FIX: The imagePullPolicy is now correctly placed inside the container spec.
       podSpecPatch: |
         containers:
           - name: main
+            imagePullPolicy: Always
             resources:
               requests:
                 memory: "{{workflow.parameters.trainer_ram}}Gi"
@@ -178,28 +184,21 @@ spec:
             --dataset=/{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}} \
             --lr={{workflow.parameters.learn_rate}} \
             --epochs={{workflow.parameters.epochs}} \
-            --eot='{{workflow.parameters.eot_token}}' \
-            --pad='{{workflow.parameters.pad_token}}' \
             --bs={{workflow.parameters.batch_size}} \
             --bs-divisor={{workflow.parameters.batch_size_divisor}} \
             --gradients={{workflow.parameters.gradients}} \
             --zero-stage={{workflow.parameters.zero_stage}} \
             --seed={{workflow.parameters.random_seed}} \
             --output-path=/{{workflow.parameters.pvc}}/finetunes/ \
-            --no-resume={{workflow.parameters.no_resume}} \
             --cache=/{{workflow.parameters.pvc}}/cache/ \
             --save-steps={{workflow.parameters.save_steps}} \
             --context-size={{workflow.parameters.context}} \
             --project-id={{workflow.parameters.project_id}} \
             --logs=/{{workflow.parameters.pvc}}/{{workflow.parameters.logs}} \
-            --fp16={{workflow.parameters.force_fp16}} \
+            --fp16 \
             --prompt-every={{workflow.parameters.prompt_every}} \
             --prompt-tokens={{workflow.parameters.prompt_tokens}} \
             --prompt-samples={{workflow.parameters.prompt_samples}} \
-            --top-k={{workflow.parameters.top_k}} \
-            --top-p={{workflow.parameters.top_p}} \
-            --temperature={{workflow.parameters.temperature}} \
-            --repetition-penalty={{workflow.parameters.repetition_penalty}} \
             --warmup-ratio={{workflow.parameters.warmup_ratio}}
         tty: true
         env:
