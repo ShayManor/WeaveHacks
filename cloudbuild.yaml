@@ -12,7 +12,6 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
-      - --no-cache,
       - --tag
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
       - .
