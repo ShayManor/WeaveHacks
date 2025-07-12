@@ -1,0 +1,15 @@
+{
+  "name": "google-home-webhook",
+  "version": "1.0.0",
+  "description": "Google Home webhook that calls /prompt API",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "gcloud functions deploy googleHomeWebhook --runtime nodejs18 --trigger-http --allow-unauthenticated"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "engines": {
+    "node": "18"
+  }
+} 
