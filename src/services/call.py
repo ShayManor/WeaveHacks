@@ -1,127 +1,130 @@
-# minimal_ivr.py
-import threading
-import time
-from typing import Dict, List
-
-import ngrok
+# crew_ivr_survey.py
+"""
+CrewAI-powered IVR survey.
+Call phone_survey('+15558675309',
+                  [{"key":"name","prompt":"May I have your full name?"},
+                   {"key":"needs","prompt":"What service are you looking for?"},
+                   {"key":"slot","prompt":"Is morning or afternoon better?"}])
+returns {"name": "...", "needs": "...", "slot": "..."}
+"""
+import os, threading, time, json, sys
+from typing import List, Dict
 from dotenv import load_dotenv
 from flask import Flask, request, Response, jsonify
 from twilio.rest import Client
+import twilio
 from twilio.twiml.voice_response import VoiceResponse, Gather
-import os, datetime, json, requests
+from pyngrok import ngrok                    # easier than raw ngrok CLI
+from crewai import Agent, Task, Crew, Process
 
+# ─────────────────────────  Twilio / Flask plumbing  ──────────────────────────
 load_dotenv()
-TWILIO_SID = os.environ["TWILIO_SID"]
-TWILIO_TOKEN = os.environ["TWILIO_TOKEN"]
-TWILIO_FROM = '17473640171'
-BASE_URL = 'https://a09a76ce0649.ngrok-free.app'
+TWILIO_USER_SID="USf92da53d58f7a16ea50085211495485d"
+TWILIO_SID="SK1b378aed0c18f8a009c9dca483c0086e"
+TWILIO_TOKEN="8sHkOfs9XbxwM0ldcXeYeItaZ56cGMII"
+TWILIO_FROM  = "17473640171"
 
-QUESTIONS = [
-    {"key": "name", "prompt": "Hi. May I have your full name?"},
-    {"key": "needs", "prompt": "What service are you looking for?"},
-    {"key": "preferred", "prompt": "Morning or afternoon is better?"}
-]
+TWILIO       = Client(TWILIO_SID, TWILIO_TOKEN)
 
-CALL_DATA = {}  # {CallSid: {"name": "...", ...}}
+app        = Flask(__name__)
+CALL_DATA  = {}   # {CallSid: {answers}}
+QUESTIONS  = []   # populated per survey run
 
-app = Flask(__name__)
-tw = Client(TWILIO_SID, TWILIO_TOKEN)
-
-
-def start_call(to_number: str):
-    call = tw.calls.create(
-        to=to_number,
-        from_=TWILIO_FROM,
-        url=f"{BASE_URL}/ask?index=0"
-    )
-    return call.sid
-
-
-@app.route("/ask")
-def ask():
+@app.route("/ivr/ask")
+def ivr_ask():
+    """Ask the question at ?index=i and repeat if no input."""
     idx = int(request.args["index"])
-    call_sid = request.values.get("CallSid")  # null on first hop
-    if call_sid and call_sid not in CALL_DATA:
-        CALL_DATA[call_sid] = {}
-
-    q_text = QUESTIONS[idx]["prompt"]
-    vr = VoiceResponse()
-    gather = Gather(
-        input="speech dtmf",
-        action=f"/handle?index={idx}",
-        timeout=6,
-        hints="yes,no,morning,afternoon,consultation,cleaning"
-    )
-    gather.say(q_text)
-    vr.append(gather)
-    vr.say("I didn't catch that.")
-    vr.redirect(f"/ask?index={idx}")  # repeat same Q
+    sid = request.values.get("CallSid")
+    if sid and sid not in CALL_DATA:
+        CALL_DATA[sid] = {}
+    vr  = VoiceResponse()
+    g   = Gather(
+            input="speech dtmf",
+            action=f"/ivr/handle?index={idx}",
+            timeout=6,
+            hints="yes,no,morning,afternoon,consultation,cleaning")
+    g.say(QUESTIONS[idx]["prompt"])
+    vr.append(g)
+    vr.say("I didn’t catch that.")
+    vr.redirect(f"/ivr/ask?index={idx}")
     return Response(str(vr), mimetype="text/xml")
 
-
-@app.route("/handle", methods=["POST"])
-def handle():
-    idx = int(request.args["index"])
-    call_sid = request.values["CallSid"]
-    answer = (request.values.get("SpeechResult") or
-              request.values.get("Digits", "")).strip()
-    CALL_DATA[call_sid][QUESTIONS[idx]["key"]] = answer
-
-    next_idx = idx + 1
-    if next_idx < len(QUESTIONS):
-        vr = VoiceResponse()
-        vr.redirect(f"/ask?index={next_idx}")
-        return Response(str(vr), mimetype="text/xml")
-
-    requests.post(f"{BASE_URL}/finished", json={
-        "call_sid": call_sid,
-        "answers": CALL_DATA[call_sid]
-    })
-    vr = VoiceResponse()
-    vr.say("Thank you. We have all we need. Goodbye.")
-    vr.hangup()
+@app.route("/ivr/handle", methods=["POST"])
+def ivr_handle():
+    """Store the answer then move to next or finish."""
+    idx  = int(request.args["index"])
+    sid  = request.values["CallSid"]
+    ans  = (request.values.get("SpeechResult") or
+            request.values.get("Digits","")).strip()
+    CALL_DATA[sid][QUESTIONS[idx]["key"]] = ans
+    nxt  = idx + 1
+    vr   = VoiceResponse()
+    if nxt < len(QUESTIONS):
+        vr.redirect(f"/ivr/ask?index={nxt}")
+    else:
+        vr.say("Thank you, goodbye.")
+        vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
+@app.route("/ping")
+def ping(): return jsonify({"ping":"pong"})
 
-@app.route("/finished", methods=["POST"])
-def finished():
-    print(json.dumps(request.json, indent=2))
-    return json.dumps(request.json, indent=2)
+def _run_flask():
+    app.run(port=8080, threaded=True)
 
+# ───────────────────────────── CrewAI Tool ────────────────────────────────────
+class TwilioIVRTool:
+    """Exposes dial() so Crew agents can start the survey."""
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+    def dial(self, to_number: str) -> str:
+        call = TWILIO.calls.create(
+            to=to_number,
+            from_=TWILIO_FROM,
+            url=f"{self.base_url}/ivr/ask?index=0")
+        return call.sid
 
-@app.route("/ping", methods=["GET"])
-def ping():
-    return jsonify({"ping": "pong"})
-
-
-if __name__ == '__main__':
-    app.run(port=8080, debug=True, threaded=True)
-
-
-def phone_survey(
-        to_number: str,
-        questions: List[Dict[str, str]],
-        *,
-        poll_interval: float = 1.0,
-        timeout: int = 180
-) -> Dict[str, str]:
+# ─────────────────────────── public API function ─────────────────────────────
+def phone_survey(to_number: str,
+                 questions: List[Dict[str,str]],
+                 poll_interval: float = 1.0,
+                 timeout: int = 180) -> Dict[str,str]:
     """
-    Dial `to_number`, ask `questions` (list of {'key','prompt'}), return {key: answer}.
-    Requires minimal_ivr.py API to be running in the same interpreter.
+    High-level one-shot helper.  Launches the IVR and
+    blocks until all questions are answered or timeout.
     """
     global QUESTIONS
-    QUESTIONS[:] = questions  # thread-safe list mutation is fine here
+    QUESTIONS[:] = questions
 
-    # 2️⃣   Launch the outbound call and capture its CallSid
-    call_sid = start_call(to_number)  # Twilio returns a unique 34-char ID
+    # 1️⃣ expose Flask over internet
+    public_url   = ngrok.connect(8080, bind_tls=True).public_url
+    tool         = TwilioIVRTool(public_url)
+    threading.Thread(target=_run_flask, daemon=True).start()
 
+    # 2️⃣ build minimal Crew
+    caller = Agent(role="Caller",
+                   goal="Ask scripted questions over the phone and store answers.",
+                   tools=[tool], allow_delegation=False)
+    dial_task = Task(description="Dial the target number and conduct the IVR survey.",
+                     agent=caller,
+                     expected_output="CallSid string returned from Twilio")
+    crew = Crew(agents=[caller], tasks=[dial_task], process=Process.sequential)
+
+    # 3️⃣ kick off crew (returns CallSid), then poll shared dict
+    call_sid = crew.kickoff(inputs={"to_number": to_number})  # result is str
     deadline = time.time() + timeout
     while time.time() < deadline:
-        answers = CALL_DATA.get(call_sid, {})
-        if len(answers) == len(questions):
-            return answers  #  finished
+        if call_sid in CALL_DATA and \
+           len(CALL_DATA[call_sid]) == len(questions):
+            return CALL_DATA[call_sid]
         time.sleep(poll_interval)
+    raise TimeoutError(f"Survey timed-out after {timeout}s")
 
-    raise TimeoutError(
-        f"Survey for {to_number} did not complete within {timeout}s."
-    )
+# ───────────────────────────── simple demo ───────────────────────────────────
+if __name__ == "__main__":
+    q = [
+        {"key": "name",  "prompt": "Hi. May I have your full name?"},
+        {"key": "needs", "prompt": "What service are you looking for?"},
+        {"key": "slot",  "prompt": "Is morning or afternoon better for you?"}
+    ]
+    print(phone_survey(sys.argv[1] if len(sys.argv)>1 else input("Number: "), q))
