@@ -1,4 +1,7 @@
+import gzip
 import json
+import pathlib
+import boto3
 
 from src.services.ping_gpt import claude, gpt
 
@@ -168,7 +171,29 @@ def writeData(start: int):
             f.write('\n')
             f.flush()
 
+def jsonl_to_txt_s3(src_path: str,
+                    bucket: str = "ml-dev",
+                    key: str = "documents/good_traces.txt") -> None:
+    src = pathlib.Path(src_path)
+    if not src.exists():
+        raise FileNotFoundError(src)
+    dst = pathlib.Path("/tmp") / key.split("/")[-1]
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    with src.open("r", encoding="utf-8") as jin, \
+         dst.open("w", encoding="utf-8") as jout:
+        for line in jin:
+            obj = json.loads(line)
+            jout.write(f"USER: {obj['prompt'].strip()}\n")
+            jout.write(f"ASSISTANT: {obj['completion'].strip()}\n")
+            jout.write("<|endoftrace|>\n")
+
+    s3 = boto3.client("s3", endpoint_url="https://cwobject.com",)
+    s3.upload_file(str(dst), bucket, key)
+    print(f"✅  Uploaded → s3://{bucket}/{key}")
+
 
 if __name__ == '__main__':
+    jsonl_to_txt_s3('data.jsonl')
     # populateIdeas(225)
-    writeData(start=92)
+    # writeData(start=92)

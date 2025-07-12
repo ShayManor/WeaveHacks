@@ -1,0 +1,243 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: "finetune-"
+spec:
+  entrypoint: main
+  serviceAccountName: reddit-processing
+  arguments:
+    parameters:
+      - name: run_name
+      - name: pvc
+        value: 'finetune-data'
+      - name: model
+        value: 'NousResearch/Hermes-2-Pro-Mistral-7B'
+      - name: dataset
+        value: 'dataset'
+      - name: trust_remote_code
+        value: 'true'
+      - name: retokenize
+        value: 'true'
+      - name: eot_token
+        value: '</s>'
+      - name: pad_token
+        value: '<unk>'
+      - name: context
+        value: '2048'
+      - name: prompt_file
+        value: ''
+      - name: prompt_every
+        value: '1000'
+      - name: prompt_tokens
+        value: '200'
+      - name: prompt_samples
+        value: '3'
+      - name: top_k
+        value: '50'
+      - name: top_p
+        value: '0.95'
+      - name: temperature
+        value: '0.8'
+      - name: repetition_penalty
+        value: '1.1'
+      - name: warmup_ratio
+        value: '0.1'
+      - name: batch_size
+        value: '-1'
+      - name: force_fp16
+        value: 'true'
+      - name: batch_size_divisor
+        value: '1.0'
+      - name: random_seed
+        value: '42'
+      - name: learn_rate
+        value: '1e-4'
+      - name: epochs
+        value: '2'
+      - name: gradients
+        value: '32'
+      - name: zero_stage
+        value: '3'
+      - name: save_steps
+        value: '10000'
+      - name: no_resume
+        value: 'false'
+      - name: logs
+        value: 'logs'
+      - name: wandb_key
+        value: ''
+      - name: project_id
+        value: 'mistral-finetune'
+      - name: inference_only
+        value: 'false'
+      - name: region
+        value: 'US-WEST-04'
+      - name: trainer_gpu
+        value: 'H200'
+      - name: trainer_gpus
+        value: 4
+      - name: trainer_cores
+        value: 64
+      - name: trainer_ram
+        value: 512
+      - name: finetuner_image
+        value: 'ghcr.io/yourusername/mistral-finetuner'
+      - name: finetuner_tag
+        value: 'latest'
+  templates:
+    - name: main
+      steps:
+        - - name: dataset-sync
+            template: dataset-sync
+            when: "{{workflow.parameters.inference_only}} == false"
+
+        - - name: finetuner
+            template: model-finetuner
+            arguments:
+              parameters:
+                - name: wandb_key
+                  value: "{{workflow.parameters.wandb_key}}"
+            when: "{{workflow.parameters.inference_only}} == false"
+
+    - name: dataset-sync
+      container:
+        image: amazon/aws-cli:latest
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: reddit-processing-env
+                key: S3_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: reddit-processing-env
+                key: S3_SECRET_ACCESS_KEY
+        command: [ "/bin/sh","-c" ]
+        args:
+          - >
+            mkdir -p /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}} &&
+            aws configure set default.s3.addressing_style virtual &&
+            aws s3 sync s3://ml-dev/documents \
+                        /{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}}/ \
+                        --endpoint-url https://cwobject.com
+        volumeMounts:
+          - name: "{{workflow.parameters.pvc}}"
+            mountPath: "/{{workflow.parameters.pvc}}"
+        resources:
+          requests:
+            memory: 2Gi
+            cpu: "2"
+          limits:
+            memory: 4Gi
+            cpu: "4"
+      volumes:
+        - name: "{{workflow.parameters.pvc}}"
+          persistentVolumeClaim:
+            claimName: "{{workflow.parameters.pvc}}"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - "{{workflow.parameters.region}}"
+
+    - name: model-finetuner
+      inputs:
+        parameters:
+          - name: wandb_key
+      podSpecPatch: |
+        containers:
+          - name: main
+            resources:
+              requests:
+                memory: "{{workflow.parameters.trainer_ram}}Gi"
+                cpu: "{{workflow.parameters.trainer_cores}}"
+                nvidia.com/gpu: "{{workflow.parameters.trainer_gpus}}"
+                ephemeral-storage: 512Gi
+              limits:
+                memory: "{{workflow.parameters.trainer_ram}}Gi"
+                cpu: "{{workflow.parameters.trainer_cores}}"
+                nvidia.com/gpu: "{{workflow.parameters.trainer_gpus}}"
+                ephemeral-storage: 512Gi
+      container:
+        image: "{{workflow.parameters.finetuner_image}}:{{workflow.parameters.finetuner_tag}}"
+        command: [ "/usr/bin/bash", "-c" ]
+        args:
+          - |
+            cd /app && \
+            torchrun --nproc_per_node={{workflow.parameters.trainer_gpus}} \
+            --master_port=29500 \
+            finetune.py \
+            --run-name={{workflow.parameters.run_name}} \
+            --model={{workflow.parameters.model}} \
+            --trust-remote-code={{workflow.parameters.trust_remote_code}} \
+            --dataset=/{{workflow.parameters.pvc}}/{{workflow.parameters.dataset}} \
+            --lr={{workflow.parameters.learn_rate}} \
+            --epochs={{workflow.parameters.epochs}} \
+            --eot='{{workflow.parameters.eot_token}}' \
+            --pad='{{workflow.parameters.pad_token}}' \
+            --bs={{workflow.parameters.batch_size}} \
+            --bs-divisor={{workflow.parameters.batch_size_divisor}} \
+            --gradients={{workflow.parameters.gradients}} \
+            --zero-stage={{workflow.parameters.zero_stage}} \
+            --seed={{workflow.parameters.random_seed}} \
+            --output-path=/{{workflow.parameters.pvc}}/finetunes/ \
+            --no-resume={{workflow.parameters.no_resume}} \
+            --cache=/{{workflow.parameters.pvc}}/cache/ \
+            --save-steps={{workflow.parameters.save_steps}} \
+            --context-size={{workflow.parameters.context}} \
+            --project-id={{workflow.parameters.project_id}} \
+            --logs=/{{workflow.parameters.pvc}}/{{workflow.parameters.logs}} \
+            --fp16={{workflow.parameters.force_fp16}} \
+            --prompt-every={{workflow.parameters.prompt_every}} \
+            --prompt-tokens={{workflow.parameters.prompt_tokens}} \
+            --prompt-samples={{workflow.parameters.prompt_samples}} \
+            --top-k={{workflow.parameters.top_k}} \
+            --top-p={{workflow.parameters.top_p}} \
+            --temperature={{workflow.parameters.temperature}} \
+            --repetition-penalty={{workflow.parameters.repetition_penalty}} \
+            --warmup-ratio={{workflow.parameters.warmup_ratio}}
+        tty: true
+        env:
+          - name: WANDB_API_KEY
+            value: "{{inputs.parameters.wandb_key}}"
+          - name: PYTHONUNBUFFERED
+            value: "1"
+          - name: TORCH_EXTENSIONS_DIR
+            value: "/{{workflow.parameters.pvc}}/torch_cache"
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: hf-token
+                key: token
+                optional: true
+        volumeMounts:
+          - mountPath: "/{{workflow.parameters.pvc}}"
+            name: "{{workflow.parameters.pvc}}"
+          - name: dshm
+            mountPath: /dev/shm
+      volumes:
+        - name: "{{workflow.parameters.pvc}}"
+          persistentVolumeClaim:
+            claimName: "{{workflow.parameters.pvc}}"
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 256Gi
+          name: dshm
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gpu.nvidia.com/class
+                    operator: In
+                    values:
+                      - "{{workflow.parameters.trainer_gpu}}"
+                  - key: topology.kubernetes.io/region
+                    operator: In
+                    values:
+                      - "{{workflow.parameters.region}}"
