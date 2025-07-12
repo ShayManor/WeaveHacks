@@ -1,0 +1,11 @@
+argo submit finetune-workflow.yaml \
+  -n reddit-processing \
+  --serviceaccount reddit-processing \
+  -p run_name=hermes-lora-$(date +%Y%m%d%H%M%S) \
+  -p model="NousResearch/Hermes-2-Pro-Mistral-7B" \
+  -p use_lora="true" \
+  -p lora_r=32 \
+  -p lora_alpha=64 \
+  -p trainer_gpus=2 \
+  -p trainer_gpu="H200" \
+  -p batch_size=8
