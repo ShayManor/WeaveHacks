@@ -7,43 +7,65 @@ A custom Google Home integration that overrides normal behavior to call your `/p
 This project allows you to:
 - Override Google Home's default behavior
 - Route all voice commands to your custom `/prompt` API
-- Process commands through your own AI logic
+- Process commands through your own AI logic using OpenAI GPT
 - Have Google Home speak the responses back to you
 
 ## 🏗️ Architecture
 
 ```
-Google Home → Cloud Function → Flask API → AI Processing → Response
+Google Home → Cloud Function → Flask API → OpenAI GPT → Response
 ```
 
 1. **Google Home**: Captures voice commands
 2. **Cloud Function**: Webhook that processes Google Home requests
-3. **Flask API**: Your custom `/prompt` endpoint for AI processing
-4. **Response**: Google Home speaks the AI response
+3. **Flask API**: Your custom `/prompt` endpoint with OpenAI integration
+4. **OpenAI GPT**: Processes queries and generates responses
+5. **Response**: Google Home speaks the AI response
 
 ## 📁 Project Structure
 
 ```
 WeaveHacks/
 ├── src/
-│   └── app.py                 # Flask API with /prompt endpoint
+│   ├── app.py                 # Flask API with /prompt endpoint
+│   └── services/
+│       ├── ping_gpt.py        # OpenAI GPT integration
+│       ├── web_search.py      # Web search functionality
+│       └── call.py            # Phone call functionality
 ├── index.js                   # Google Cloud Function webhook
 ├── package.json               # Cloud Function dependencies
 ├── smart-home-manifest.json   # Google Smart Home device definition
 ├── venv/                      # Python virtual environment
+├── .env.example               # Environment variables template
+├── .gitignore                 # Git ignore rules
 └── README.md                  # This file
 ```
 
 ## 🚀 Quick Start
 
-### 1. Start the Flask API
+### 1. Set up Environment Variables
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your OpenAI API key
+# OPENAI_API_KEY=your_actual_api_key_here
+```
+
+**Get your OpenAI API key:**
+1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create a new API key
+3. Add it to your `.env` file
+
+### 2. Start the Flask API
 
 ```bash
 # Activate virtual environment
 source venv/bin/activate
 
 # Install dependencies (if not already done)
-pip install flask flask-cors
+pip install flask flask-cors openai python-dotenv
 
 # Start the Flask app
 cd src && python app.py
@@ -51,7 +73,7 @@ cd src && python app.py
 
 Your API will be available at: `http://localhost:5000/prompt`
 
-### 2. Test the API
+### 3. Test the API
 
 ```bash
 # Test the endpoint
@@ -63,11 +85,11 @@ curl -X POST http://localhost:5000/prompt \
 Expected response:
 ```json
 {
-  "response": "I received your message: Hello, how are you?"
+  "response": "Hello! I'm doing well, thank you for asking. How can I help you today?"
 }
 ```
 
-### 3. Deploy Cloud Function
+### 4. Deploy Cloud Function
 
 ```bash
 # Navigate to project root
@@ -80,7 +102,7 @@ gcloud functions deploy googleHomeWebhook \
   --allow-unauthenticated
 ```
 
-### 4. Set up Google Smart Home Action
+### 5. Set up Google Smart Home Action
 
 1. Go to [Actions on Google Console](https://console.actions.google.com/)
 2. Create a new project
@@ -174,10 +196,19 @@ curl -X POST YOUR_FUNCTION_URL \
    ```bash
    # Make sure you're in the virtual environment
    source venv/bin/activate
-   pip install flask flask-cors
+   pip install flask flask-cors openai python-dotenv
    ```
 
-2. **Cloud Function deployment fails**:
+2. **OpenAI API errors**:
+   ```bash
+   # Check your API key is set correctly
+   cat .env
+   
+   # Test OpenAI connection
+   python -c "from src.services.ping_gpt import gpt; print(gpt('Hello'))"
+   ```
+
+3. **Cloud Function deployment fails**:
    ```bash
    # Check if you're in the right directory
    ls package.json index.js
@@ -186,7 +217,7 @@ curl -X POST YOUR_FUNCTION_URL \
    gcloud config list
    ```
 
-3. **API not accessible**:
+4. **API not accessible**:
    - Check if Flask is running on port 5000
    - Verify firewall settings
    - Use `host='0.0.0.0'` in Flask for external access
@@ -201,6 +232,7 @@ gcloud functions logs read googleHomeWebhook
 
 ## 🔒 Security Considerations
 
+- **Never commit your `.env` file** - it contains sensitive API keys
 - The Cloud Function is set to `--allow-unauthenticated` for testing
 - For production, implement proper authentication
 - Consider rate limiting for your API
@@ -210,7 +242,7 @@ gcloud functions logs read googleHomeWebhook
 
 ### Modify AI Logic
 
-Edit `src/app.py` to add your custom AI processing:
+Edit `src/app.py` to customize the AI behavior:
 
 ```python
 @app.route("/prompt", methods=["POST"])
@@ -218,14 +250,21 @@ def prompt():
     # Extract query
     if request.is_json:
         data = request.get_json()
-        query = data.get('query', '')
+        user_query = data.get('query', '')
     else:
-        query = request.form.get('query', '')
+        user_query = request.form.get('query', '')
     
-    # Add your AI logic here
-    # response = your_ai_function(query)
+    # Customize the system prompt
+    system_prompt = "You are a helpful AI assistant integrated with Google Home. Provide clear, concise, and helpful responses that would be appropriate for voice output."
     
-    return jsonify({"response": response})
+    # Use different models or parameters
+    ai_response = gpt(
+        prompt=user_query,
+        system=system_prompt,
+        model="gpt-4.1-mini"  # or "gpt-4o-mini", "gpt-4o"
+    )
+    
+    return jsonify({"response": ai_response})
 ```
 
 ### Add New Device Traits
@@ -262,10 +301,12 @@ If you encounter issues:
 2. Review Google Cloud Function logs
 3. Verify your Flask API is running
 4. Ensure your public URL is accessible
+5. Check your OpenAI API key is valid
 
 ## 🔗 Useful Links
 
 - [Google Smart Home API Documentation](https://developers.google.com/assistant/smarthome)
 - [Google Cloud Functions Documentation](https://cloud.google.com/functions/docs)
 - [Flask Documentation](https://flask.palletsprojects.com/)
+- [OpenAI API Documentation](https://platform.openai.com/docs)
 - [Actions on Google Console](https://console.actions.google.com/)
