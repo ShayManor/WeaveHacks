@@ -24,7 +24,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
     evaluate==0.4.1 \
     wandb==0.16.3 \
     peft==0.8.2 \
-    bitsandbytes==0.42.0 \
     scipy==1.12.0 \
     sentencepiece==0.1.99 \
     protobuf==4.25.3 \
