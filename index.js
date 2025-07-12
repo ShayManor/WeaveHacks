@@ -164,12 +164,11 @@ async function handleDeviceExecute(req, res) {
         
         console.log('Processing command:', execution.command, 'with query:', userQuery);
         
-        // Call your /prompt API
-        const apiResponse = await fetch('YOUR_API_URL/prompt', {
+        // Call your /prompt API - UPDATE THIS URL with your public URL
+        const apiResponse = await fetch('http://localhost:5000/prompt', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer YOUR_API_KEY'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             query: userQuery,
@@ -225,11 +224,11 @@ async function handleDirectAPI(req, res) {
   const userQuery = req.body.text || req.body.query || "Hello";
   
   try {
-    const apiResponse = await fetch('YOUR_API_URL/prompt', {
+    // Call your /prompt API - UPDATE THIS URL with your public URL
+    const apiResponse = await fetch('http://localhost:5000/prompt', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer YOUR_API_KEY'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         query: userQuery,
