@@ -229,7 +229,7 @@ def main():
         output_dir=str(out_dir),
         overwrite_output_dir=not ns.no_resume,
         num_train_epochs=ns.epochs,
-        per_device_train_batch_size=ns.bs,
+        per_device_train_batch_size=4,
         gradient_accumulation_steps=ns.gradients,
         warmup_ratio=ns.warmup_ratio,
         learning_rate=ns.lr,
@@ -270,7 +270,7 @@ def main():
 
     trainer = Trainer(model=model, args=targs, train_dataset=data, data_collator=collate, tokenizer=tok, callbacks=cbs)
     logger.info("Training started")
-    trainer.train(resume_from_checkpoint=not ns.no_resume)
+    trainer.train(resume_from_checkpoint=False)
 
     # The Trainer will handle saving the model correctly on the main process.
     # We just need to save the tokenizer and the ready file.

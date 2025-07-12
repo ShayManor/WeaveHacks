@@ -12,7 +12,7 @@ argo submit finetune.yaml \
  -p epochs=2 \
  -p trainer_gpu="H200" \
  -p context=2048 \
- -p batch_size=-1 \
+ -p batch_size=4 \
  -p prompt_every=1000 \
  -p trainer_ram=512 \
  -p save_steps=10000 \
