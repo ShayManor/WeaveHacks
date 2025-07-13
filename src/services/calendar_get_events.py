@@ -20,15 +20,15 @@ def execute(num_events: int):
     path = Path(__file__).resolve().parent.parent
     SCOPES = ['https://www.googleapis.com/auth/calendar']
     creds = None
-    if os.path.exists(path / 'token.json'):
-        creds = Credentials.from_authorized_user_file((path / 'token.json').__str__(), SCOPES)
+    if os.path.exists(path / 'cal_token.json'):
+        creds = Credentials.from_authorized_user_file((path / 'cal_token.json').__str__(), SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file((path / 'gcsecret.json').__str__(), SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file((path / 'cal_gcsecret.json').__str__(), SCOPES)
             creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
+        with open('cal_token.json', 'w') as token:
             token.write(creds.to_json())
 
 
