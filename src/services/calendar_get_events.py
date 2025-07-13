@@ -12,6 +12,11 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
 def execute(num_events: int):
+    """
+    Get next n events from google calendar
+    :param num_events: Number of next events to get
+    :return: Returns title and times of events
+    """
     path = Path(__file__).resolve().parent.parent
     SCOPES = ['https://www.googleapis.com/auth/calendar']
     creds = None

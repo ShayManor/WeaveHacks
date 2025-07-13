@@ -13,6 +13,10 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 
 def execute(title: str, description: str, start_time: str, end_time: str):
+    """
+    Creates event on google calendar. All times are in PST.
+    :return: "Event created"
+    """
     path = Path(__file__).resolve().parent.parent
     SCOPES = ['https://www.googleapis.com/auth/calendar']
     creds = None
