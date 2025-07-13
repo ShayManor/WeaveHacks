@@ -2,7 +2,6 @@ import inspect
 import json
 from pathlib import Path
 
-import requests
 from typing import Dict, Any, List, Callable
 import importlib
 import os
@@ -32,10 +31,10 @@ class HomeMateAgent:
         print(tools_section)
         return header + tools_section
 
-
     def __init__(self, use_claude=True, model="claude-3-5-haiku-latest"):
         self.use_claude = use_claude
         self.model = model
+        self.tools: Dict[str, Callable]
         self.tools = self._load_tools()
         self.system_prompt = self._build_system_prompt()
         self.conversation_history = []
@@ -166,21 +165,20 @@ class HomeMateAgent:
     def _load_tools(self) -> Dict[str, callable]:
         """Dynamically load all tools from services folder"""
         tools = {}
-        services_dir = "services"
+        path = Path(__file__).resolve().parent
+        services_dir = path / "services/"
+        print(services_dir)
 
         self.tools: Dict[str, Callable]  # tool name → function
         self.tool_metadata: Dict[str, str] = {}  # tool name → signature string
 
-        for name, fn in self.tools.items():
-            self.tool_metadata[name] = describe_tool(fn)
-
         print(f"Loading tools from {services_dir}...")
-
+        print(os.listdir(services_dir))
         for filename in os.listdir(services_dir):
             if filename.endswith(".py") and filename != "__init__.py" and filename != "ping_gpt.py":
                 module_name = filename[:-3]
                 try:
-                    module = importlib.import_module(f"{services_dir}.{module_name}")
+                    module = importlib.import_module(f"src.services.{module_name}")
 
                     if hasattr(module, 'execute'):
                         tools[module_name] = module.execute
@@ -190,10 +188,12 @@ class HomeMateAgent:
                 except Exception as e:
                     print(f"✗ Failed to load {module_name}: {e}")
 
+        for name, fn in tools.items():
+            self.tool_metadata[name] = describe_tool(fn)
+
         print(f"Total tools loaded: {len(tools)}")
         print(f"Available tools: {list(tools.keys())}")
         return tools
-
 
     def _call_llm(self, messages: List[Dict]) -> Dict:
         """Call Claude or local Llama model and return structured response"""
@@ -265,7 +265,6 @@ class HomeMateAgent:
 
             content = response.get("content", "")
             tool_calls = response.get("tool_calls", [])
-
 
             if not content.strip() and not tool_calls:
                 print("Empty response, skipping...")
