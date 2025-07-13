@@ -1,19 +1,26 @@
-substitutions:
-  _REGION: us-central1
-  _REPO: static-site-repo
-  _SERVICE: frontend
-
-options:
-  logging: CLOUD_LOGGING_ONLY
 steps:
+  # 1. Pull previous image (ignore errors on first run)
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        docker pull ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest || true
+  # 2. Build with cache-from
   - name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --cache-from
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
       - --tag
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
       - .
+  # 3. Push the new image
   - name: gcr.io/cloud-builders/docker
-    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA" ]
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+  # 4. Deploy
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -24,5 +31,8 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --quiet
+
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY
