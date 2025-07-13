@@ -5,6 +5,7 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -13,7 +14,10 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
       - .
   - name: gcr.io/cloud-builders/docker
-    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA" ]
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+  # Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -24,5 +28,6 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --quiet
+
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA

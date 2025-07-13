@@ -69,20 +69,10 @@ class HomeMateCrewIntegration:
 
     def _get_llm_config(self):
         """Get LLM configuration for CrewAI agents"""
-        # You can use Claude or your local Llama here
-        if self.homemate_agent.use_claude:
-            from langchain_anthropic import ChatAnthropic
-            return ChatAnthropic(
-                model=self.homemate_agent.model,
-                api_key=os.getenv("ANTHROPIC_API_KEY")
-            )
-        else:
-            from langchain.llms import LlamaCpp
-            return LlamaCpp(
-                model_path="path/to/your/llama/model",
-                n_ctx=2048,
-                n_batch=8,
-                temperature=0.7
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(
+            model=self.homemate_agent.model,
+            api_key=os.getenv("ANTHROPIC_API_KEY")
             )
 
     def create_crew(self, config: Dict) -> Crew:
