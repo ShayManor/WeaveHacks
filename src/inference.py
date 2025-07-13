@@ -21,7 +21,7 @@ class HomeMateAgent:
         self.model = model
         self.tools = self._load_tools()
         self.conversation_history = []
-        self.crew_integration = HomeMateCrewIntegration()
+        self.crew_integration = HomeMateCrewIntegration(self)
         crew_manager.crew_integration = self.crew_integration
         self.tools["crew_manager"] = crew_manager.execute
 

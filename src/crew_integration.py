@@ -1,11 +1,8 @@
 import os
 
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import BaseTool
+from crewai.tools import BaseTool
 from typing import Dict, List, Any, Optional, Type
-import json
-import importlib
-from pydantic import BaseModel, Field
 
 
 class DynamicTool(BaseTool):
