@@ -9,9 +9,16 @@ import uuid
 import sqlite3
 from contextlib import contextmanager
 
+TWILIO_SID = "SK1b378aed0c18f8a009c9dca483c0086e"
+TWILIO_TOKEN = "8sHkOfs9XbxwM0ldcXeYeItaZ56cGMII"
+TWILIO_FROM = "+17473640171"  # e.g. +17473640171
+TWILIO_ACCOUNT_SID = "SK1b378aed0c18f8a009c9dca483c0086e"
+TWILIO_AUTH_TOKEN = "8sHkOfs9XbxwM0ldcXeYeItaZ56cGMII"
+TWILIO_PHONE_NUMBER = "+17473640171"  # Your Twilio phone number
+WEBHOOK_URL = "https://b6681bc89ca7.ngrok-free.app"
 
 class PhoneSurveyAgent:
-    def __init__(self, account_sid: str, auth_token: str, twilio_phone: str):
+    def __init__(self, account_sid: str = "SK1b378aed0c18f8a009c9dca483c0086e", auth_token: str = "8sHkOfs9XbxwM0ldcXeYeItaZ56cGMII", twilio_phone: str = '+17473640171'):
         """
         Initialize the phone survey agent
 
@@ -338,6 +345,8 @@ def make_phone_survey(account_sid: str, auth_token: str, twilio_phone: str,
     agent = PhoneSurveyAgent(account_sid, auth_token, twilio_phone)
     return agent.make_survey_call(target_phone, questions)
 
+def execute(phone_number: str, questions: List[Dict[str, str]]):
+    return PhoneSurveyAgent().make_survey_call(phone_number, questions)
 
 # Example usage
 if __name__ == "__main__":
@@ -361,9 +370,9 @@ if __name__ == "__main__":
 
     # Method 1: Using the class
     survey_agent = PhoneSurveyAgent(
-        account_sid=TWILIO_ACCOUNT_SID,
-        auth_token=TWILIO_AUTH_TOKEN,
-        twilio_phone=TWILIO_PHONE_NUMBER
+        # account_sid=TWILIO_ACCOUNT_SID,
+        # auth_token=TWILIO_AUTH_TOKEN,
+        # twilio_phone=TWILIO_PHONE_NUMBER
     )
 
     results = survey_agent.make_survey_call(target_phone, QUESTIONS)
