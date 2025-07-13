@@ -8,6 +8,9 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+from src.crew_integration import HomeMateCrewIntegration
+from src.services import crew_manager
+
 with (Path(__file__).resolve().parent / "prompts.json").open('r') as f:
     PROMPTS: dict = json.load(f)
 
@@ -18,6 +21,9 @@ class HomeMateAgent:
         self.model = model
         self.tools = self._load_tools()
         self.conversation_history = []
+        self.crew_integration = HomeMateCrewIntegration()
+        crew_manager.crew_integration = self.crew_integration
+        self.tools["crew_manager"] = crew_manager.execute
 
         if use_claude:
             load_dotenv()
@@ -282,6 +288,6 @@ class HomeMateAgent:
 if __name__ == "__main__":
     agent = HomeMateAgent(True)
     res = agent.run(
-        user_input="Good morning! Make me a coffee and send johhny@gmail.com an email telling him I miss him!")
+        user_input="Good morning! Call my dentist and make an appointment for a root canal next week. Call james at 13478347434 and tell him I can't make it to his barbeque today.")
     print('====================Final Result====================')
     print(res)
