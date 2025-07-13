@@ -165,7 +165,7 @@ async function handleDeviceExecute(req, res) {
         console.log('Processing command:', execution.command, 'with query:', userQuery);
         
         // Call your /prompt API - UPDATE THIS URL with your public URL
-        const apiResponse = await fetch('http://localhost:5000/prompt', {
+        const apiResponse = await fetch('https://eefa9d3098d1.ngrok-free.app/prompt', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -225,7 +225,7 @@ async function handleDirectAPI(req, res) {
   
   try {
     // Call your /prompt API - UPDATE THIS URL with your public URL
-    const apiResponse = await fetch('http://localhost:5000/prompt', {
+    const apiResponse = await fetch('https://eefa9d3098d1.ngrok-free.app/prompt', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

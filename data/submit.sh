@@ -1,11 +1,22 @@
-argo submit finetune-workflow.yaml \
+argo submit finetune.yaml \
   -n reddit-processing \
   --serviceaccount reddit-processing \
-  -p run_name=hermes-lora-$(date +%Y%m%d%H%M%S) \
+  -p run_name=hermes-$(date +%Y%m%d%H%M%S) \
+  -p pvc="finetune-data" \
   -p model="NousResearch/Hermes-2-Pro-Mistral-7B" \
-  -p use_lora="true" \
-  -p lora_r=32 \
-  -p lora_alpha=64 \
-  -p trainer_gpus=2 \
-  -p trainer_gpu="H200" \
-  -p batch_size=8
+ -p retokenize="false" \
+ -p wandb_key="$WANDB_KEY" \
+ -p pad_token='<unk>' \
+ -p eot_token='</s>' \
+ -p trainer_gpus=4 \
+ -p epochs=2 \
+ -p trainer_gpu="H200" \
+ -p context=2048 \
+ -p batch_size=4 \
+ -p prompt_every=1000 \
+ -p trainer_ram=512 \
+ -p save_steps=10000 \
+ -p zero_stage=3 \
+ -p gradients=32 \
+ -p force_fp16="true" \
+ -p learn_rate='1e-4'
