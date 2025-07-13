@@ -1,8 +1,9 @@
+import inspect
 import json
 from pathlib import Path
 
 import requests
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable
 import importlib
 import os
 from anthropic import Anthropic
@@ -15,11 +16,28 @@ with (Path(__file__).resolve().parent / "prompts.json").open('r') as f:
     PROMPTS: dict = json.load(f)
 
 
+def describe_tool(fn: callable) -> str:
+    sig = inspect.signature(fn)
+    params = ", ".join(f"{name}" for name in sig.parameters)
+    return f"{fn.__name__}({params})"
+
+
 class HomeMateAgent:
+    def _build_system_prompt(self) -> str:
+        header = PROMPTS["STEP_BY_STEP_SYSTEM"]
+        tools_section = "\nAvailable tools:\n" + "\n".join(
+            f"- {name}: {self.tool_metadata[name]}"
+            for name in sorted(self.tools)
+        )
+        print(tools_section)
+        return header + tools_section
+
+
     def __init__(self, use_claude=True, model="claude-3-5-haiku-latest"):
         self.use_claude = use_claude
         self.model = model
         self.tools = self._load_tools()
+        self.system_prompt = self._build_system_prompt()
         self.conversation_history = []
         self.crew_integration = HomeMateCrewIntegration(self)
         crew_manager.crew_integration = self.crew_integration
@@ -150,6 +168,12 @@ class HomeMateAgent:
         tools = {}
         services_dir = "services"
 
+        self.tools: Dict[str, Callable]  # tool name → function
+        self.tool_metadata: Dict[str, str] = {}  # tool name → signature string
+
+        for name, fn in self.tools.items():
+            self.tool_metadata[name] = describe_tool(fn)
+
         print(f"Loading tools from {services_dir}...")
 
         for filename in os.listdir(services_dir):
@@ -191,8 +215,7 @@ class HomeMateAgent:
 
             response = self.client.messages.create(
                 model=self.model,
-                system=PROMPTS["STEP_BY_STEP_SYSTEM"],
-                # system=messages[0]["content"],
+                system=self.system_prompt,
                 messages=claude_messages,
                 max_tokens=8192,
             )

@@ -6,7 +6,17 @@ crew_integration = None
 
 
 def execute(**kwargs) -> str:
-    """Manage CrewAI agents and crews dynamically"""
+    """Manage CrewAI agents and crews dynamically.
+
+    Actions:
+      - create_agent: add an agent with role, goal, tools
+      - create_crew:  group agents into a crew with tasks
+      - execute_crew: run a crew by ID with given inputs
+      - create_tool:  register a new tool module at runtime
+
+    Returns:
+      Status message or new identifier.
+    """
     action = kwargs.get("action", "")
     config = kwargs.get("config", {})
 
