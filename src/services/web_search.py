@@ -56,7 +56,7 @@ def clean_web_results(raw_data: list[ResultWithText], k: int = 10) -> list[dict[
     return good
 
 
-def search_web(prompt: str):
+def execute(prompt: str):
     load_dotenv()
     exa = Exa(os.getenv("EXA_API_KEY"))
     raw_result = exa.search_and_contents(
